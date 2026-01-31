@@ -117,6 +117,73 @@ def list_subscriptions():
         raise RuntimeError(f"Dialpad API error (HTTP {e.code}): {error_body}")
 
 
+def delete_subscription(subscription_id):
+    """Delete an SMS webhook subscription."""
+    if not DIALPAD_API_KEY:
+        raise ValueError("DIALPAD_API_KEY environment variable not set")
+
+    url = f"{DIALPAD_API_BASE}/subscriptions/sms/{subscription_id}"
+
+    headers = {
+        "Authorization": f"Bearer {DIALPAD_API_KEY}",
+        "Accept": "application/json"
+    }
+
+    request = urllib.request.Request(url, headers=headers, method="DELETE")
+
+    try:
+        with urllib.request.urlopen(request) as response:
+            return response.status == 200
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode("utf-8") if e.fp else ""
+        raise RuntimeError(f"Dialpad API error (HTTP {e.code}): {error_body}")
+
+
+def delete_webhook(webhook_id):
+    """Delete a Dialpad webhook."""
+    if not DIALPAD_API_KEY:
+        raise ValueError("DIALPAD_API_KEY environment variable not set")
+
+    url = f"{DIALPAD_API_BASE}/webhooks/{webhook_id}"
+
+    headers = {
+        "Authorization": f"Bearer {DIALPAD_API_KEY}",
+        "Accept": "application/json"
+    }
+
+    request = urllib.request.Request(url, headers=headers, method="DELETE")
+
+    try:
+        with urllib.request.urlopen(request) as response:
+            return response.status == 200
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode("utf-8") if e.fp else ""
+        raise RuntimeError(f"Dialpad API error (HTTP {e.code}): {error_body}")
+
+
+def list_webhooks():
+    """List all Dialpad webhooks."""
+    if not DIALPAD_API_KEY:
+        raise ValueError("DIALPAD_API_KEY environment variable not set")
+
+    url = f"{DIALPAD_API_BASE}/webhooks"
+
+    headers = {
+        "Authorization": f"Bearer {DIALPAD_API_KEY}",
+        "Accept": "application/json"
+    }
+
+    request = urllib.request.Request(url, headers=headers, method="GET")
+
+    try:
+        with urllib.request.urlopen(request) as response:
+            response_data = response.read().decode("utf-8")
+            return json.loads(response_data)
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode("utf-8") if e.fp else ""
+        raise RuntimeError(f"Dialpad API error (HTTP {e.code}): {error_body}")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Create SMS webhook subscriptions via Dialpad API"
@@ -150,10 +217,24 @@ def main():
     # List command
     list_parser = subparsers.add_parser("list", help="List all webhook subscriptions")
 
+    # Delete command
+    delete_parser = subparsers.add_parser("delete", help="Delete a webhook subscription")
+    delete_parser.add_argument(
+        "id",
+        help="Subscription ID to delete"
+    )
+
+    # Webhooks command
+    webhooks_parser = subparsers.add_parser("webhooks", help="Manage raw webhooks")
+    webhooks_sub = webhooks_parser.add_subparsers(dest="webhook_command")
+    webhooks_sub.add_parser("list", help="List all webhooks")
+    delete_hook_parser = webhooks_sub.add_parser("delete", help="Delete a webhook")
+    delete_hook_parser.add_argument("id", help="Webhook ID to delete")
+
     args = parser.parse_args()
 
     try:
-        if args.command == "create" or args.command is None:
+        if args.command == "create":
             result = create_sms_subscription(
                 webhook_url=args.url,
                 events=args.events,
@@ -180,6 +261,27 @@ def main():
                 print(f"   Direction: {sub.get('direction')}")
                 print(f"   Enabled: {sub.get('enabled')}")
                 print()
+        
+        elif args.command == "delete":
+            if delete_subscription(args.id):
+                print(f"Successfully deleted subscription {args.id}")
+            else:
+                print(f"Failed to delete subscription {args.id}")
+
+        elif args.command == "webhooks":
+            if args.webhook_command == "list":
+                result = list_webhooks()
+                webhooks = result.get("items", [])
+                print(f"Webhooks: {len(webhooks)}")
+                for hook in webhooks:
+                    print(f"   ID: {hook.get('id')}")
+                    print(f"   URL: {hook.get('hook_url')}")
+                    print()
+            elif args.webhook_command == "delete":
+                if delete_webhook(args.id):
+                    print(f"Successfully deleted webhook {args.id}")
+                else:
+                    print(f"Failed to delete webhook {args.id}")
         
         sys.exit(0)
 
