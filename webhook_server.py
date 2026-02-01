@@ -143,11 +143,46 @@ class DialpadWebhookHandler(BaseHTTPRequestHandler):
             self.send_error(404, "Not Found")
 
     def do_POST(self):
-        """Handle POST requests (webhook endpoint)"""
-        if self.path != "/webhook/dialpad":
-            self.send_error(404, "Not Found")
+        """Handle POST requests"""
+        # /store endpoint - called by OpenClaw plugin to store messages
+        if self.path == "/store":
+            self.handle_store()
             return
 
+        # /webhook/dialpad - main webhook endpoint
+        if self.path == "/webhook/dialpad":
+            self.handle_webhook()
+            return
+
+        self.send_error(404, "Not Found")
+
+    def handle_store(self):
+        """Handle /store endpoint - stores message in SQLite, called by OpenClaw plugin"""
+        content_length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(content_length).decode("utf-8")
+
+        try:
+            data = json.loads(body) if body else {}
+        except json.JSONDecodeError as e:
+            print(f"❌ Invalid JSON on /store: {e}")
+            self.send_error(400, "Invalid JSON")
+            return
+
+        try:
+            result = handle_sms_webhook(data)
+            stored = result.get("stored", False)
+
+            self.send_response(200 if stored else 500)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps(result).encode())
+
+        except Exception as e:
+            print(f"❌ Storage error on /store: {e}")
+            self.send_error(500, f"Storage error: {e}")
+
+    def handle_webhook(self):
+        """Handle /webhook/dialpad endpoint - main Dialpad webhook"""
         # Read and parse request body
         content_length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(content_length).decode("utf-8")
