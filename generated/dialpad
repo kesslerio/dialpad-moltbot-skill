@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+"""Dialpad CLI facade.
+
+This wrapper exposes stable command aliases while delegating all API execution to
+openapi2cli-generated code in generated/dialpad.openapi.
+"""
+
+from __future__ import annotations
+
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+RAW_CLI = Path(__file__).with_name("dialpad.openapi")
+ALIASES = {
+    ("sms", "send"): ("sms", "sms.send"),
+    ("sms", "export"): ("stats", "stats.create"),
+    ("call", "make"): ("call", "call.call"),
+    ("contact", "lookup"): ("contacts", "contacts.list"),
+    ("webhook", "create"): ("webhooks", "webhooks.create"),
+}
+
+
+def _usage() -> str:
+    return (
+        "Usage: dialpad [OPTIONS] COMMAND [ARGS]...\n\n"
+        "Stable aliases:\n"
+        "  dialpad sms send      -> dialpad sms sms.send\n"
+        "  dialpad call make     -> dialpad call call.call\n"
+        "  dialpad contact lookup -> dialpad contacts contacts.list\n"
+        "  dialpad sms export    -> dialpad stats stats.create\n"
+        "  dialpad webhook create -> dialpad webhooks webhooks.create\n"
+    )
+
+
+def _translate(argv: list[str]) -> list[str]:
+    if len(argv) >= 2:
+        key = (argv[0], argv[1])
+        mapped = ALIASES.get(key)
+        if mapped:
+            return [*mapped, *argv[2:]]
+    return argv
+
+
+def _auth_env() -> dict[str, str]:
+    env = os.environ.copy()
+    api_key = env.get("DIALPAD_API_KEY")
+    if api_key and not env.get("DIALPAD_TOKEN"):
+        env["DIALPAD_TOKEN"] = api_key
+    return env
+
+
+def main() -> int:
+    if not RAW_CLI.exists():
+        print(f"Error: generated CLI not found: {RAW_CLI}", file=sys.stderr)
+        return 2
+
+    if len(sys.argv) == 1:
+        print(_usage(), file=sys.stderr)
+        return 2
+
+    if sys.argv[1] in {"-h", "--help"}:
+        proc = subprocess.run([sys.executable, str(RAW_CLI), "--help"], env=_auth_env())
+        return proc.returncode
+
+    translated = _translate(sys.argv[1:])
+    proc = subprocess.run([sys.executable, str(RAW_CLI), *translated], env=_auth_env())
+    return proc.returncode
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
