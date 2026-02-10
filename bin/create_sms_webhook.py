@@ -76,15 +76,23 @@ def handle_create(args: argparse.Namespace) -> int:
         elif "sms_received" in provided:
             direction = "inbound"
 
+    try:
+        endpoint_id = int(webhook_id)
+    except ValueError as exc:
+        raise WrapperError(f"Invalid webhook_id returned: {webhook_id}") from exc
+
     payload = {
-        "endpoint_id": int(webhook_id),
+        "endpoint_id": endpoint_id,
         "direction": direction,
     }
     if event_types:
         payload["event_types"] = event_types
     if args.office_id:
-        payload["target_type"] = "office"
-        payload["target_id"] = int(args.office_id)
+        try:
+            payload["target_type"] = "office"
+            payload["target_id"] = int(args.office_id)
+        except ValueError as exc:
+            raise WrapperError(f"Invalid --office-id: {args.office_id}") from exc
 
     subscription = run_generated_json([
         "subscriptions",

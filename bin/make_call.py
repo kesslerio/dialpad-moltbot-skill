@@ -71,6 +71,7 @@ def main() -> int:
         if args.text_to_speak:
             payload["command"] = json.dumps({"actions": [{"say": args.text_to_speak}]})
 
+        # Build command with required args + custom-data for TTS
         cmd = [
             "call", "call.call",
             "--phone-number", args.to,
@@ -78,6 +79,8 @@ def main() -> int:
         ]
         if args.from_number:
             cmd.extend(["--outbound-caller-id", args.from_number])
+        if args.text_to_speak:
+            cmd.extend(["--custom-data", json.dumps({"command": {"actions": [{"say": args.text_to_speak}]}})])
         result = run_generated_json(cmd)
 
         if args.json:
