@@ -123,12 +123,128 @@ To use a specific voice, add `--voice "VoiceName"`.
 - **Features:** Outbound calling, Text-to-Speech
 - **Caller ID:** Must be assigned to your Dialpad account
 
+## New Capabilities: 241 Endpoints via Generated CLI
+
+The OpenAPI-generated CLI (`generated/dialpad`) exposes 241 endpoints vs the original 6 legacy scripts.
+
+### Campaign & Automation
+```bash
+# Bulk SMS campaigns
+dialpad message bulk_messages.send --recipients '["+14155551234"]' --text "Campaign message"
+
+# Schedule SMS for later delivery
+dialpad message schedules.create --send-time "2026-02-15T09:00:00Z" --text "Reminder"
+
+# Manage SMS templates
+dialpad message templates.list
+dialpad message templates.create --name "Welcome" --text "Welcome to ShapeScale!"
+```
+
+### Advanced Call Management
+```bash
+# Transfer live call to another user
+dialpad call transfer_call --call-id "12345" --target-user-id "67890"
+
+# Get AI-generated call summary
+dialpad call ai_recap --call-id "12345"
+
+# List call dispositions (outcomes)
+dialpad dispositions list
+dialpad dispositions.create --name "Demo Scheduled" --color "#00FF00"
+
+# Initiate IVR flow
+dialpad call initiate_ivr_call --phone-number "+14155551234" --ivr-id "menu_123"
+
+# Control call recording
+dialpad call recording.start --call-id "12345"
+dialpad call recording.stop --call-id "12345"
+
+# Add call labels
+dialpad call put_call_labels --call-id "12345" --labels '["hot-lead", "follow-up"]'
+```
+
+### Organization Management
+```bash
+# User management
+dialpad users users.list
+dialpad users users.get --id "5765607478525952"
+dialpad users users.update --id "5765607478525952" --status "away"
+
+# Office/Department management
+dialpad offices offices.list
+dialpad offices offices.create --name "SF Office" --timezone "America/Los_Angeles"
+dialpad departments departments.list
+
+# Call center queues
+dialpad callcenters callcenters.list
+dialpad callcenters operators.list --callcenter-id "12345"
+
+# Access control
+dialpad accesscontrolpolicies accesscontrolpolicies.list
+dialpad accesscontrolpolicies accesscontrolpolicies.assign --id "policy_123" --user-id "456"
+```
+
+### Contact & CRM
+```bash
+# Full contact CRUD (beyond just lookup)
+dialpad contacts contacts.create --first-name "John" --last-name "Doe" --phones '[{"number":"+14155551234"}]'
+dialpad contacts contacts.update --id "contact_123" --company-id "company_456"
+dialpad contacts contacts.delete --id "contact_123"
+
+# Company management
+dialpad companies companies.list
+dialpad companies companies.create --name "Acme Corp"
+
+# Contact import/export
+dialpad contacts imports.create --file "contacts.csv"
+```
+
+### Advanced Webhooks
+```bash
+# SMS webhooks with direction filtering
+dialpad subscriptions webhook_sms_event_subscription.create \
+  --endpoint-id 12345 \
+  --direction "inbound" \
+  --event-types '["sms_received"]'
+
+# Call event webhooks
+dialpad subscriptions webhook_call_event_subscription.create \
+  --endpoint-id 12345 \
+  --target-type "office" \
+  --target-id "67890"
+
+# Voicemail webhooks
+dialpad subscriptions webhook_voicemail_event_subscription.create \
+  --endpoint-id 12345 \
+  --enabled true
+```
+
+### Analytics & Reporting
+```bash
+# Generate stats reports
+dialpad stats stats.create --stat-type "calls" --days-ago-start 7 --days-ago-end 0
+dialpad stats stats.create --stat-type "csat" --export-type "records"
+dialpad stats stats.create --stat-type "dispositions" --target-id "office_123" --target-type "office"
+
+# Get report status and download
+dialpad stats stats.get --id "request_123"
+```
+
 ### Known Users (Auto-Detected)
 | Name | Phone | User ID |
 |------|-------|---------|
 | Martin | (415) 360-2954 | `5765607478525952` |
 | Lilla | (415) 870-1945 | `5625110025338880` |
 | Scott | (415) 223-0323 | `5964143916400640` |
+
+**Configuration via Environment Variable:**
+```bash
+# Set user mappings as JSON
+export DIALPAD_USER_MAP='{"+14153602954": "5765607478525952", "+14158701945": "5625110025338880"}'
+
+# Or provide --user-id explicitly
+python3 make_call.py --to "+14155551234" --user-id "5765607478525952"
+```
 
 ## Response
 
@@ -280,25 +396,39 @@ bin/export_sms.py --office-id 6194013244489728 --output office_sms.csv
 
 ```
 Dialpad SMS Skill
-├── generated/
-│   ├── dialpad           # Stable CLI facade (dialpad sms send, call make, etc.)
-│   └── dialpad.openapi   # OpenAPI-generated CLI from openapi2cli
-├── bin/
-│   ├── send_sms.py           # Legacy-compatible wrapper -> dialpad sms send
-│   ├── make_call.py          # Legacy-compatible wrapper -> dialpad call make
-│   ├── lookup_contact.py     # Legacy-compatible wrapper -> dialpad contact lookup
-│   ├── export_sms.py         # Legacy-compatible wrapper -> dialpad sms export
-│   └── create_sms_webhook.py # Legacy-compatible wrapper -> dialpad webhook create
-├── sms_sqlite.py         # SQLite storage with FTS5 (RECOMMENDED)
-├── webhook_sqlite.py     # Webhook handler for SQLite
-├── send_sms.py           # Legacy fallback script
-├── make_call.py          # Legacy fallback script
-├── lookup_contact.py     # Legacy fallback script
-├── export_sms.py         # Legacy fallback script
-├── create_sms_webhook.py # Legacy fallback script
-├── sms_storage.py        # Legacy JSON storage (deprecated)
-└── webhook_receiver.py   # Legacy webhook handler
+├── bin/                          # Backward-compatible wrappers
+│   ├── send_sms.py              # Send SMS (wrapper → dialpad sms send)
+│   ├── make_call.py             # Make voice calls (wrapper → dialpad call make)
+│   ├── lookup_contact.py        # Contact lookup (wrapper → dialpad contact lookup)
+│   ├── export_sms.py            # Export historical SMS (wrapper → dialpad sms export)
+│   ├── create_sms_webhook.py    # Webhook management (wrapper → dialpad webhook create)
+│   └── _dialpad_compat.py       # Shared helpers for wrappers
+├── generated/                    # OpenAPI-generated CLI
+│   ├── dialpad                  # Facade with auth bridge + aliases
+│   └── dialpad.openapi          # Full 241-endpoint CLI
+├── scripts/
+│   └── parity-check.sh          # Verify wrapper/new CLI parity
+├── sms_sqlite.py                # SQLite storage with FTS5 (RECOMMENDED)
+├── webhook_sqlite.py            # Webhook handler for SQLite
+├── send_sms.py                  # Legacy fallback script
+├── make_call.py                 # Legacy fallback script
+├── lookup_contact.py            # Legacy fallback script
+├── export_sms.py                # Legacy fallback script
+├── create_sms_webhook.py        # Legacy fallback script
+├── sms_storage.py               # Legacy JSON storage (deprecated)
+└── webhook_receiver.py          # Legacy webhook handler
 ```
+
+### Wrapper → Generated CLI Flow
+
+Legacy scripts in `bin/` provide backward compatibility while delegating to the generated CLI:
+
+1. **Wrapper receives** legacy-style arguments
+2. **Transforms** to generated CLI format (payload JSON)
+3. **Executes** `generated/dialpad` with proper auth
+4. **Returns** results in legacy format
+
+This allows gradual migration: old scripts keep working, new features accessible via `generated/dialpad` directly.
 
 ## Regeneration
 
