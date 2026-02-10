@@ -71,7 +71,14 @@ def main() -> int:
         if args.text_to_speak:
             payload["command"] = json.dumps({"actions": [{"say": args.text_to_speak}]})
 
-        result = run_generated_json(["call", "make", "--data", json.dumps(payload)])
+        cmd = [
+            "call", "call.call",
+            "--phone-number", args.to,
+            "--user-id", str(user_id),
+        ]
+        if args.from_number:
+            cmd.extend(["--outbound-caller-id", args.from_number])
+        result = run_generated_json(cmd)
 
         if args.json:
             print(json.dumps(result, indent=2))
