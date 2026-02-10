@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 
 from _dialpad_compat import (
@@ -16,11 +17,27 @@ from _dialpad_compat import (
     WrapperError,
 )
 
-KNOWN_USERS = {
-    "+14153602954": "5765607478525952",  # Martin Kessler
-    "+14158701945": "5625110025338880",  # Lilla Laczo
-    "+14152230323": "5964143916400640",  # Scott Sicz
-}
+# Map of E.164 phone numbers to Dialpad user IDs.
+# Set via DIALPAD_USER_MAP env var as JSON, e.g.:
+#   export DIALPAD_USER_MAP='{"+15551234567": "1234567890"}'
+# Fallback: empty dict (--user-id flag required).
+_DEFAULT_USER_MAP: dict[str, str] = {}
+
+
+def _load_user_map() -> dict[str, str]:
+    raw = os.environ.get("DIALPAD_USER_MAP", "")
+    if not raw:
+        return _DEFAULT_USER_MAP
+    try:
+        parsed = json.loads(raw)
+        if not isinstance(parsed, dict):
+            raise WrapperError("DIALPAD_USER_MAP must be a JSON object")
+        return {str(k): str(v) for k, v in parsed.items()}
+    except json.JSONDecodeError as exc:
+        raise WrapperError(f"DIALPAD_USER_MAP is not valid JSON: {exc}") from exc
+
+
+KNOWN_USERS = _load_user_map()
 
 
 

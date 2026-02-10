@@ -7,6 +7,7 @@ import argparse
 import json
 import sys
 import time
+import urllib.error
 import urllib.request
 from datetime import date, datetime
 from typing import Any
@@ -80,7 +81,7 @@ def download_file(url: str, output_path: str) -> None:
     try:
         with urllib.request.urlopen(url) as response:
             content = response.read()
-    except Exception as exc:  # noqa: BLE001
+    except (urllib.error.URLError, urllib.error.HTTPError, OSError) as exc:
         raise WrapperError(f"Failed to download export file: {exc}") from exc
 
     with open(output_path, "wb") as handle:

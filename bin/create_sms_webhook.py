@@ -77,12 +77,12 @@ def handle_create(args: argparse.Namespace) -> int:
             direction = "inbound"
 
     try:
-        endpoint_id = int(webhook_id)
+        webhook_id = int(webhook_id)
     except ValueError as exc:
         raise WrapperError(f"Invalid webhook_id returned: {webhook_id}") from exc
 
     payload = {
-        "endpoint_id": endpoint_id,
+        "endpoint_id": webhook_id,
         "direction": direction,
     }
     if event_types:
@@ -92,14 +92,27 @@ def handle_create(args: argparse.Namespace) -> int:
             payload["target_type"] = "office"
             payload["target_id"] = int(args.office_id)
         except ValueError as exc:
+            # Clean up the webhook before raising
+            try:
+                run_generated_json(["webhooks", "webhooks.delete", "--id", str(webhook_id)])
+            except WrapperError:
+                pass
             raise WrapperError(f"Invalid --office-id: {args.office_id}") from exc
 
-    subscription = run_generated_json([
-        "subscriptions",
-        "webhook_sms_event_subscription.create",
-        "--data",
-        json.dumps(payload),
-    ])
+    try:
+        subscription = run_generated_json([
+            "subscriptions",
+            "webhook_sms_event_subscription.create",
+            "--data",
+            json.dumps(payload),
+        ])
+    except WrapperError:
+        # Subscription failed — clean up the orphaned webhook
+        try:
+            run_generated_json(["webhooks", "webhooks.delete", "--id", str(webhook_id)])
+        except WrapperError:
+            pass  # Best-effort cleanup
+        raise
     result = {"subscription": subscription, "webhook": webhook}
 
     if args.json:
