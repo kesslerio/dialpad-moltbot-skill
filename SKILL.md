@@ -392,6 +392,49 @@ bin/export_sms.py --office-id 6194013244489728 --output office_sms.csv
 - `text` — Message content
 - `status` — Delivery status
 
+## SMS Best Practices
+
+### Shell Escaping Warning
+
+**CRITICAL:** When using `bin/send_sms.py`, dollar signs (`$`) in messages get interpreted as shell variables and stripped out.
+
+**❌ WRONG — Prices get garbled:**
+```bash
+bin/send_sms.py --to "+123" --message "Price is $2,388"  
+# Actually sends: "Price is ,388" (shell replaces $2 with empty)
+```
+
+**✅ RIGHT — Use single quotes:**
+```bash
+bin/send_sms.py --to "+123" --message 'Price is $2,388'
+# Sends correctly: "Price is $2,388"
+```
+
+**✅ RIGHT — Escape dollar signs:**
+```bash
+bin/send_sms.py --to "+123" --message "Price is \$2,388"
+# Sends correctly: "Price is $2,388"
+```
+
+### Safer Alternatives
+
+**Via stdin (no shell interpretation):**
+```bash
+echo 'Price is $2,388' | bin/send_sms.py --to "+123"
+```
+
+**Via file:**
+```bash
+bin/send_sms.py --to "+123" --file message.txt
+```
+
+### Price Formatting Tips
+
+To avoid shell escaping issues with prices:
+- **Option 1:** No commas: "$2388" instead of "$2,388"
+- **Option 2:** Spell it out: "2,388 dollars" instead of "$2,388"
+- **Option 3:** Use single quotes or stdin as shown above
+
 ## Architecture
 
 ```
