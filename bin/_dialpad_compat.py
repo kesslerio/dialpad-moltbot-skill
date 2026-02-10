@@ -45,12 +45,15 @@ def run_generated(args: list[str], capture_output: bool = False) -> subprocess.C
         raise WrapperError(f"Generated CLI not found at {GENERATED_DIALPAD}")
 
     cmd = [str(GENERATED_DIALPAD), *args]
-    return subprocess.run(
-        cmd,
-        env=_env_with_auth(),
-        text=True,
-        capture_output=capture_output,
-    )
+    try:
+        return subprocess.run(
+            cmd,
+            env=_env_with_auth(),
+            text=True,
+            capture_output=capture_output,
+        )
+    except OSError as exc:
+        raise WrapperError(f"Failed to execute generated CLI: {exc}") from exc
 
 
 

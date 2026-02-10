@@ -63,7 +63,8 @@ def handle_create(args: argparse.Namespace) -> int:
     if not webhook_id:
         raise WrapperError(f"Webhook create did not return id: {webhook}")
 
-    # Map events to direction if provided
+    # Map legacy event names to API direction field:
+    #   sms_sent -> outbound, sms_received -> inbound, both -> all
     direction = args.direction
     event_types = None
     if args.events:

@@ -101,7 +101,7 @@ def poll_for_completion(request_id: str, timeout: int, interval: int) -> dict[st
         if state == "failed":
             raise WrapperError("Export failed")
 
-        time.sleep(max(1, interval))
+        time.sleep(interval)
 
     raise WrapperError(f"Timed out after {timeout} seconds")
 

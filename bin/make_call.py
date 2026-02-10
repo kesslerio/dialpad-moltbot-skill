@@ -61,8 +61,8 @@ def resolve_user_id(from_number: str | None, explicit_user_id: str | None) -> st
             return KNOWN_USERS[from_number]
         raise WrapperError(f"Unknown --from number: {from_number}. Map it in KNOWN_USERS or provide --user-id.")
     # Default to first known user if nothing specified
-    for user_id in KNOWN_USERS.values():
-        return user_id
+    if KNOWN_USERS:
+        return next(iter(KNOWN_USERS.values()))
     raise WrapperError("user_id is required; provide --user-id or --from with a known number")
 
 
@@ -88,13 +88,10 @@ def main() -> int:
         if args.text_to_speak:
             payload["command"] = json.dumps({"actions": [{"say": args.text_to_speak}]})
 
-        # Use --data to send the full payload including the 'command' field which is 
-        # missing from the generated CLI options but supported by the Dialpad API.
-        # We still provide required flags to satisfy Click validation.
+        # Use --data to send the full payload; --data alone is sufficient and
+        # avoids duplicating phone_number/user_id as individual flags.
         cmd = [
             "call", "call.call",
-            "--phone-number", args.to,
-            "--user-id", str(user_id),
             "--data", json.dumps(payload),
         ]
         result = run_generated_json(cmd)

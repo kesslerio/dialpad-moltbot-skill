@@ -41,7 +41,7 @@ def main() -> int:
         payload = {
             "to_numbers": args.to,
             "text": args.message,
-            "infer_country_code": bool(args.infer_country_code),
+            "infer_country_code": args.infer_country_code,
         }
         if args.from_number:
             payload["from_number"] = args.from_number
