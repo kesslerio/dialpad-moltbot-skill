@@ -8,9 +8,13 @@ homepage: https://developers.dialpad.com/
 
 Send SMS and make voice calls via the Dialpad API.
 
-Primary interface:
-- `generated/dialpad` (OpenAPI-generated CLI facade)
-- `bin/*.py` compatibility wrappers for legacy script behavior
+## When to Use
+
+Use this skill to:
+- Send SMS messages (individual or batch)
+- Make voice calls (with TTS or custom voices)
+- Manage contacts and organization settings
+- Query SMS history from local SQLite database
 
 ## Available Phone Numbers
 
@@ -20,465 +24,46 @@ Primary interface:
 | (415) 360-2954 | Work/Personal | Default for work context |
 | (415) 991-7155 | Support SMS Only | SMS only (no voice) |
 
-Use `--from <number>` to specify which number appears as caller ID.
+## Quick Start
+
+**Send SMS:**
+```bash
+bin/send_sms.py --to "+14155551234" --message "Hello from OpenClaw!"
+```
+
+**Make Call (TTS):**
+```bash
+bin/make_call.py --to "+14155551234" --text "This is a call from the agent."
+```
+
+**Check SMS History:**
+```bash
+python3 sms_sqlite.py list
+```
+
+## Key Rules
+
+1. **Format:** Always use E.164 format for numbers (e.g., `+14155551234`).
+2. **Escaping:** Use single quotes for messages containing `$` to prevent shell expansion (e.g., `'Price is $10'`).
+3. **Environment:** `DIALPAD_API_KEY` must be set. `ELEVENLABS_API_KEY` is optional for premium voices.
+4. **Wrappers:** Use `bin/*.py` for simple tasks; use `generated/dialpad` for advanced API features.
+
+## Reference Documentation
+
+- **`references/api-reference.md`** — API endpoints, Generated CLI usage, Webhooks
+- **`references/sms-storage.md`** — SQLite commands, FTS5 search, legacy storage
+- **`references/voice-options.md`** — List of available TTS voices (Budget & Premium)
+- **`references/architecture.md`** — System architecture, wrappers, and CLI generation
 
 ## Setup
 
 **Required environment variable:**
-```
-DIALPAD_API_KEY=your_api_key_here
-```
-
-`generated/dialpad` and all `bin/*.py` wrappers map `DIALPAD_API_KEY` to bearer auth automatically.
-
-**Optional (for ElevenLabs TTS in calls):**
-```
-ELEVENLABS_API_KEY=your_elevenlabs_api_key
-```
-
-Get your Dialpad API key from [Dialpad API Settings](https://dialpad.com/api/settings).
-
-## Usage
-
-### Send SMS
-
 ```bash
-# Basic SMS
-bin/send_sms.py --to "+14155551234" --message "Hello from Clawdbot!"
-
-# From specific number (e.g., work phone)
-bin/send_sms.py --to "+14155551234" --message "Hello!" --from "+14153602954"
-
-# Batch SMS (up to 10 recipients)
-bin/send_sms.py --to "+14155551234" "+14155555678" --message "Group update"
-
-# Direct generated CLI
-generated/dialpad sms send --data '{"to_numbers":["+14155551234"],"text":"Hello from generated CLI"}'
+export DIALPAD_API_KEY="your_key"
 ```
 
-### Make Voice Calls
-
+**Optional:**
 ```bash
-# Basic call (ring recipient - they'll answer to speak with you)
-bin/make_call.py --to "+14155551234"
-
-# Call with Text-to-Speech greeting (Dialpad's robotic TTS)
-bin/make_call.py --to "+14155551234" --text "Hello! This is a call from ShapeScale."
-
-# Call from specific number with TTS
-bin/make_call.py --to "+14155551234" --from "+14153602954" --text "Meeting reminder"
-
-# With custom voice (requires ELEVENLABS_API_KEY)
-bin/make_call.py --to "+14155551234" --voice "Adam" --text "Premium voice test"
-
-# Direct generated CLI
-generated/dialpad call make --data '{"phone_number":"+14155551234","user_id":"5765607478525952"}'
-```
-
-### From Agent Instructions
-
-**SMS:**
-```bash
-bin/send_sms.py --to "+14155551234" --message "Your message here"
-```
-
-**Voice Call:**
-```bash
-bin/make_call.py --to "+14155551234" --text "Optional TTS message"
-```
-
-## Voice Options
-
-### Low-Cost Voices (Recommended for Budget)
-| Voice | Style | Notes |
-|-------|-------|-------|
-| **Eric** ⭐ | Male, smooth, trustworthy | Low-cost, available! |
-| Daniel | Male, British, steady | Budget |
-| Sarah | Female, mature | Budget |
-| River | Male, neutral | Budget |
-| Alice | Female, clear | Budget |
-| Brian | Male, deep | Budget |
-| Bill | Male, wise | Budget |
-
-### Premium Voices (Higher Quality)
-| Voice | Style | Notes |
-|-------|-------|-------|
-| **Adam** | Male, deep, clear | Best for professional |
-| Antoni | Male, warm | Friendly tone |
-| Bella | Female, soft | Warm, engaging |
-
-To use a specific voice, add `--voice "VoiceName"`.
-
-## API Capabilities
-
-### SMS
-- **Endpoint:** `POST https://dialpad.com/api/v2/sms`
-- **Max recipients:** 10 per request
-- **Max message length:** 1600 characters
-- **Rate limits:** 100-800 requests/minute (tier-dependent)
-
-### Voice Calls
-- **Endpoint:** `POST https://dialpad.com/api/v2/call`
-- **Requires:** `phone_number` + `user_id`
-- **Features:** Outbound calling, Text-to-Speech
-- **Caller ID:** Must be assigned to your Dialpad account
-
-## New Capabilities: 241 Endpoints via Generated CLI
-
-The OpenAPI-generated CLI (`generated/dialpad`) exposes 241 endpoints vs the original 6 legacy scripts.
-
-### Campaign & Automation
-```bash
-# Bulk SMS campaigns
-dialpad message bulk_messages.send --recipients '["+14155551234"]' --text "Campaign message"
-
-# Schedule SMS for later delivery
-dialpad message schedules.create --send-time "2026-02-15T09:00:00Z" --text "Reminder"
-
-# Manage SMS templates
-dialpad message templates.list
-dialpad message templates.create --name "Welcome" --text "Welcome to ShapeScale!"
-```
-
-### Advanced Call Management
-```bash
-# Transfer live call to another user
-dialpad call transfer_call --call-id "12345" --target-user-id "67890"
-
-# Get AI-generated call summary
-dialpad call ai_recap --call-id "12345"
-
-# List call dispositions (outcomes)
-dialpad dispositions list
-dialpad dispositions.create --name "Demo Scheduled" --color "#00FF00"
-
-# Initiate IVR flow
-dialpad call initiate_ivr_call --phone-number "+14155551234" --ivr-id "menu_123"
-
-# Control call recording
-dialpad call recording.start --call-id "12345"
-dialpad call recording.stop --call-id "12345"
-
-# Add call labels
-dialpad call put_call_labels --call-id "12345" --labels '["hot-lead", "follow-up"]'
-```
-
-### Organization Management
-```bash
-# User management
-dialpad users users.list
-dialpad users users.get --id "5765607478525952"
-dialpad users users.update --id "5765607478525952" --status "away"
-
-# Office/Department management
-dialpad offices offices.list
-dialpad offices offices.create --name "SF Office" --timezone "America/Los_Angeles"
-dialpad departments departments.list
-
-# Call center queues
-dialpad callcenters callcenters.list
-dialpad callcenters operators.list --callcenter-id "12345"
-
-# Access control
-dialpad accesscontrolpolicies accesscontrolpolicies.list
-dialpad accesscontrolpolicies accesscontrolpolicies.assign --id "policy_123" --user-id "456"
-```
-
-### Contact & CRM
-```bash
-# Full contact CRUD (beyond just lookup)
-dialpad contacts contacts.create --first-name "John" --last-name "Doe" --phones '[{"number":"+14155551234"}]'
-dialpad contacts contacts.update --id "contact_123" --company-id "company_456"
-dialpad contacts contacts.delete --id "contact_123"
-
-# Company management
-dialpad companies companies.list
-dialpad companies companies.create --name "Acme Corp"
-
-# Contact import/export
-dialpad contacts imports.create --file "contacts.csv"
-```
-
-### Advanced Webhooks
-```bash
-# SMS webhooks with direction filtering
-dialpad subscriptions webhook_sms_event_subscription.create \
-  --endpoint-id 12345 \
-  --direction "inbound" \
-  --event-types '["sms_received"]'
-
-# Call event webhooks
-dialpad subscriptions webhook_call_event_subscription.create \
-  --endpoint-id 12345 \
-  --target-type "office" \
-  --target-id "67890"
-
-# Voicemail webhooks
-dialpad subscriptions webhook_voicemail_event_subscription.create \
-  --endpoint-id 12345 \
-  --enabled true
-```
-
-### Analytics & Reporting
-```bash
-# Generate stats reports
-dialpad stats stats.create --stat-type "calls" --days-ago-start 7 --days-ago-end 0
-dialpad stats stats.create --stat-type "csat" --export-type "records"
-dialpad stats stats.create --stat-type "dispositions" --target-id "office_123" --target-type "office"
-
-# Get report status and download
-dialpad stats stats.get --id "request_123"
-```
-
-### Known Users (Auto-Detected)
-| Name | Phone | User ID |
-|------|-------|---------|
-| Martin | (415) 360-2954 | `5765607478525952` |
-| Lilla | (415) 870-1945 | `5625110025338880` |
-| Scott | (415) 223-0323 | `5964143916400640` |
-
-**Configuration via Environment Variable:**
-```bash
-# Set user mappings as JSON
-export DIALPAD_USER_MAP='{"+14153602954": "5765607478525952", "+14158701945": "5625110025338880"}'
-
-# Or provide --user-id explicitly
-python3 make_call.py --to "+14155551234" --user-id "5765607478525952"
-```
-
-## Response
-
-### SMS Response
-```json
-{
-  "id": "4612924117884928",
-  "status": "pending",
-  "message_delivery_result": "pending",
-  "to_numbers": ["+14158235304"],
-  "from_number": "+14155201316",
-  "direction": "outbound"
-}
-```
-
-### Call Response
-```json
-{
-  "call_id": "6342343299702784",
-  "status": "ringing"
-}
-```
-
-## Error Handling
-
-| Error | Meaning | Action |
-|-------|---------|--------|
-| `invalid_destination` | Invalid phone number | Verify E.164 format |
-| `invalid_source` | Caller ID not available | Check `--from` number assignment |
-| `no_route` | Cannot deliver | Check carrier/recipient |
-| `user_id required` | Missing user ID | Use `--from` with known number |
-
-## SMS Storage (SQLite with FTS5)
-
-Messages are stored in a single SQLite database with full-text search.
-
-### Storage
-
-```
-~/.dialpad/sms.db  # Single file with messages + FTS5 index
-```
-
-### Commands
-
-```bash
-# List all SMS conversations
-python3 sms_sqlite.py list
-
-# View specific conversation thread
-python3 sms_sqlite.py thread "+14155551234"
-
-# Full-text search across all messages
-python3 sms_sqlite.py search "demo"
-
-# Show unread message summary
-python3 sms_sqlite.py unread
-
-# Statistics
-python3 sms_sqlite.py stats
-
-# Mark messages as read
-python3 sms_sqlite.py read "+14155551234"
-
-# Migrate from legacy storage
-python3 sms_sqlite.py migrate
-```
-
-### Features
-
-- **Full-text search** via FTS5 (`search "keyword"`)
-- **Fast queries** with indexes on contact, timestamp, direction
-- **ACID transactions** — no corruption on concurrent writes
-- **Unread tracking** with per-contact counts
-- **Denormalized contact stats** for instant list views
-
-### Webhook Integration
-
-```python
-from webhook_sqlite import handle_sms_webhook, format_notification, get_inbox_summary
-
-# Store incoming message
-result = handle_sms_webhook(dialpad_payload)
-notification = format_notification(result)
-
-# Get inbox summary
-summary = get_inbox_summary()
-```
-
-### Legacy JSON Storage (Deprecated)
-
-The original JSON-based storage is still available but not recommended:
-
-```bash
-python3 sms_storage.py [list|thread|search|unread]
-```
-
-## Requirements
-
-- Python 3.9+
-- `click` + `requests` available (required by generated CLI)
-- Valid `DIALPAD_API_KEY` environment variable
-- For ElevenLabs TTS: `ELEVENLABS_API_KEY` + webhook setup for audio playback
-
-## Reading SMS Messages
-
-Dialpad doesn't provide a direct "GET /sms" endpoint. Instead, use:
-
-### 1. Real-Time: SMS Webhooks
-
-Receive SMS events in real-time when messages are sent/received.
-
-```bash
-# Create a webhook subscription
-bin/create_sms_webhook.py create --url "https://your-server.com/webhook/dialpad" --direction "all"
-
-# List existing subscriptions
-bin/create_sms_webhook.py list
-```
-
-**Webhook Events:**
-- `sms_sent` — Outgoing SMS
-- `sms_received` — Incoming SMS
-
-**Note:** Add `message_content_export` scope to receive message text in events.
-
-### 2. Historical: Stats Export API
-
-Export past SMS messages as CSV.
-
-```bash
-# Export all SMS
-bin/export_sms.py --output all_sms.csv
-
-# Export by date range
-bin/export_sms.py --start-date 2026-01-01 --end-date 2026-01-31 --output jan_sms.csv
-
-# Export for specific office
-bin/export_sms.py --office-id 6194013244489728 --output office_sms.csv
-```
-
-**Output:** CSV file with columns:
-- `date` — Timestamp
-- `from_number` — Sender
-- `to_number` — Recipient
-- `text` — Message content
-- `status` — Delivery status
-
-## SMS Best Practices
-
-### Shell Escaping Warning
-
-**CRITICAL:** When using `bin/send_sms.py`, dollar signs (`$`) in messages get interpreted as shell variables and stripped out.
-
-**❌ WRONG — Prices get garbled:**
-```bash
-bin/send_sms.py --to "+123" --message "Price is $2,388"  
-# Actually sends: "Price is ,388" (shell replaces $2 with empty)
-```
-
-**✅ RIGHT — Use single quotes:**
-```bash
-bin/send_sms.py --to "+123" --message 'Price is $2,388'
-# Sends correctly: "Price is $2,388"
-```
-
-**✅ RIGHT — Escape dollar signs:**
-```bash
-bin/send_sms.py --to "+123" --message "Price is \$2,388"
-# Sends correctly: "Price is $2,388"
-```
-
-### Safer Alternatives
-
-**Via stdin (no shell interpretation):**
-```bash
-echo 'Price is $2,388' | bin/send_sms.py --to "+123"
-```
-
-**Via file:**
-```bash
-bin/send_sms.py --to "+123" --file message.txt
-```
-
-### Price Formatting Tips
-
-To avoid shell escaping issues with prices:
-- **Option 1:** No commas: "$2388" instead of "$2,388"
-- **Option 2:** Spell it out: "2,388 dollars" instead of "$2,388"
-- **Option 3:** Use single quotes or stdin as shown above
-
-## Architecture
-
-```
-Dialpad SMS Skill
-├── bin/                          # Backward-compatible wrappers
-│   ├── send_sms.py              # Send SMS (wrapper → dialpad sms send)
-│   ├── make_call.py             # Make voice calls (wrapper → dialpad call make)
-│   ├── lookup_contact.py        # Contact lookup (wrapper → dialpad contact lookup)
-│   ├── export_sms.py            # Export historical SMS (wrapper → dialpad sms export)
-│   ├── create_sms_webhook.py    # Webhook management (wrapper → dialpad webhook create)
-│   └── _dialpad_compat.py       # Shared helpers for wrappers
-├── generated/                    # OpenAPI-generated CLI
-│   ├── dialpad                  # Facade with auth bridge + aliases
-│   └── dialpad.openapi          # Full 241-endpoint CLI
-├── scripts/
-│   └── parity-check.sh          # Verify wrapper/new CLI parity
-├── sms_sqlite.py                # SQLite storage with FTS5 (RECOMMENDED)
-├── webhook_sqlite.py            # Webhook handler for SQLite
-├── send_sms.py                  # Legacy fallback script
-├── make_call.py                 # Legacy fallback script
-├── lookup_contact.py            # Legacy fallback script
-├── export_sms.py                # Legacy fallback script
-├── create_sms_webhook.py        # Legacy fallback script
-├── sms_storage.py               # Legacy JSON storage (deprecated)
-└── webhook_receiver.py          # Legacy webhook handler
-```
-
-### Wrapper → Generated CLI Flow
-
-Legacy scripts in `bin/` provide backward compatibility while delegating to the generated CLI:
-
-1. **Wrapper receives** legacy-style arguments
-2. **Transforms** to generated CLI format (payload JSON)
-3. **Executes** `generated/dialpad` with proper auth
-4. **Returns** results in legacy format
-
-This allows gradual migration: old scripts keep working, new features accessible via `generated/dialpad` directly.
-
-## Regeneration
-
-```bash
-# 1) Fetch latest Dialpad OpenAPI
-curl -fsSL https://dash.readme.com/api/v1/api-registry/58a089fmkn6y1s3 -o openapi.json
-
-# 2) Generate CLI from pinned openapi2cli commit
-uvx --from /tmp/openapi2cli openapi2cli generate /tmp/openapi.normalized.json --name dialpad --output generated/dialpad.openapi
+export ELEVENLABS_API_KEY="your_key"
+export DIALPAD_USER_MAP='{"+14153602954": "5765607478525952"}'
 ```
