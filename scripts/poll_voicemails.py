@@ -177,28 +177,54 @@ def send_to_telegram(text):
         return False
 
 
-def fetch_inbound_calls(api_key):
-    url = "https://dialpad.com/api/v2/call?direction=inbound&limit=50"
+def fetch_inbound_calls(api_key, lookback_ms=None, now_ms=None):
+    """Fetch inbound calls, paginating until items are older than lookback window."""
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Accept": "application/json",
     }
-    req = urllib.request.Request(url, headers=headers)
+    all_calls = []
+    cursor = None
+    max_pages = 20  # safety cap (~1000 calls max)
 
-    with urllib.request.urlopen(req, timeout=20) as response:
-        raw = response.read().decode("utf-8")
-        data = json.loads(raw)
+    for _ in range(max_pages):
+        url = "https://dialpad.com/api/v2/call?direction=inbound&limit=50"
+        if cursor:
+            url += f"&cursor={urllib.parse.quote(cursor)}"
 
-    if isinstance(data, list):
-        return data
-    if not isinstance(data, dict):
-        return []
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=20) as response:
+            data = json.loads(response.read().decode("utf-8"))
 
-    for key in ("items", "calls", "data", "results"):
-        value = data.get(key)
-        if isinstance(value, list):
-            return value
-    return []
+        if isinstance(data, list):
+            all_calls.extend(data)
+            break
+
+        if not isinstance(data, dict):
+            break
+
+        items = []
+        for key in ("items", "calls", "data", "results"):
+            value = data.get(key)
+            if isinstance(value, list):
+                items = value
+                break
+
+        all_calls.extend(items)
+
+        # Stop paginating if all items on this page are older than lookback
+        if lookback_ms and now_ms and items:
+            oldest = min(
+                int(float(c.get("date_ended") or 0)) for c in items
+            )
+            if oldest < (now_ms - lookback_ms):
+                break
+
+        cursor = data.get("cursor")
+        if not cursor or not items:
+            break
+
+    return all_calls
 
 
 def has_voicemail(call):
@@ -305,11 +331,13 @@ def main():
         db_path = Path(DB_PATH_RAW).expanduser()
         db_path.parent.mkdir(parents=True, exist_ok=True)
 
+        now_ms = int(time.time() * 1000)
+
         with sqlite3.connect(str(db_path)) as conn:
             ensure_db(conn)
 
             try:
-                calls = fetch_inbound_calls(DIALPAD_API_KEY)
+                calls = fetch_inbound_calls(DIALPAD_API_KEY, lookback_ms=lookback_ms, now_ms=now_ms)
             except urllib.error.HTTPError as exc:
                 print(f"❌ Dialpad API HTTP error: {exc.code} {exc.reason}", file=sys.stderr)
                 print("found 0 voicemail(s), notified 0 new")
@@ -318,8 +346,6 @@ def main():
                 print(f"❌ Dialpad API request failed: {exc}", file=sys.stderr)
                 print("found 0 voicemail(s), notified 0 new")
                 return 0
-
-            now_ms = int(time.time() * 1000)
             voicemails = [
                 call
                 for call in calls
