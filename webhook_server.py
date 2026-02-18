@@ -386,7 +386,11 @@ class DialpadWebhookHandler(BaseHTTPRequestHandler):
 
         direction = data.get("call_direction", data.get("direction", "unknown"))
         call_missed = data.get("call_missed", False)
-        duration = data.get("duration", data.get("call_duration", 0))
+        raw_duration = data.get("duration", data.get("call_duration", 0))
+        try:
+            duration = int(float(raw_duration))
+        except (TypeError, ValueError):
+            duration = 0
         call_state = str(data.get("call_state", "")).lower()
 
         should_notify = (
@@ -540,8 +544,9 @@ def main():
     print(f"Configuration:")
     print(f"  - Dialpad API: {'✓' if DIALPAD_API_KEY else '✗ (contact lookup disabled)'}")
     print(f"  - Telegram: {'✓' if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID else '✗ (notifications disabled)'}")
-    print(f"  - Call Notifications: {'✓' if TELEGRAM_BOT_TOKEN else '✗'}")
-    print(f"  - Voicemail Notifications: {'✓' if TELEGRAM_BOT_TOKEN else '✗'}")
+    tg_ready = bool(TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID)
+    print(f"  - Call Notifications: {'✓' if tg_ready else '✗ (Telegram not fully configured)'}")
+    print(f"  - Voicemail Notifications: {'✓' if tg_ready else '✗ (Telegram not fully configured)'}")
     print(f"  - JWT Verification: {'✓' if WEBHOOK_SECRET else '✗ (disabled)'}")
     print(f"  - Line Names:")
     for number in sorted(LINE_NAMES.keys()):
