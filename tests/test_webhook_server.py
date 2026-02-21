@@ -4,7 +4,11 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from webhook_server import classify_inbound_notification, detect_reliable_missed_call_hint
+from webhook_server import (
+    classify_inbound_notification,
+    detect_reliable_missed_call_hint,
+    extract_message_text,
+)
 
 
 class WebhookNotificationClassificationTests(unittest.TestCase):
@@ -49,6 +53,15 @@ class WebhookNotificationClassificationTests(unittest.TestCase):
         }
         self.assertFalse(detect_reliable_missed_call_hint(payload))
         self.assertEqual(classify_inbound_notification(payload), "blank_sms")
+
+    def test_text_content_fallback_used_when_text_is_blank(self):
+        payload = {
+            "direction": "inbound",
+            "text": "   ",
+            "text_content": "Real body",
+        }
+        self.assertEqual(extract_message_text(payload), "Real body")
+        self.assertEqual(classify_inbound_notification(payload), "sms")
 
 
 if __name__ == "__main__":
