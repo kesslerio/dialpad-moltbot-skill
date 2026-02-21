@@ -56,6 +56,18 @@ DEFAULT_LINE_NAMES = {
 }
 
 
+MISSED_CALL_STATES = {"missed", "no_answer", "unanswered"}
+MISSED_CALL_EVENT_HINTS = {"missed_call", "call.missed", "call_missed", "call missed"}
+CALL_CONTEXT_FIELDS = {
+    "call_id",
+    "call_missed",
+    "call_state",
+    "call_direction",
+    "call_duration",
+    "duration",
+}
+
+
 def normalize_phone_number(phone_number):
     """
     Normalize a phone number to last 10 digits for reliable comparisons.
@@ -165,6 +177,74 @@ def get_contact_name(phone_number):
     except Exception as e:
         print(f"⚠️  Dialpad contact lookup failed: {e}")
     return None
+
+
+def extract_message_text(data):
+    """Extract text payload from webhook event as a string."""
+    return str(data.get("text", data.get("text_content", "")) or "")
+
+
+def is_blank_text(value):
+    """True when text is empty or whitespace-only."""
+    return not str(value or "").strip()
+
+
+def first_value(value):
+    """Return first item for list-like values, otherwise passthrough."""
+    if isinstance(value, (list, tuple)):
+        return value[0] if value else None
+    return value
+
+
+def detect_reliable_missed_call_hint(data):
+    """
+    Detect missed-call events routed through the SMS webhook path.
+    Conservative by design: requires blank text plus explicit missed-call signal.
+    """
+    if not isinstance(data, dict):
+        return False
+
+    if str(data.get("direction", "")).lower() != "inbound":
+        return False
+
+    if not is_blank_text(extract_message_text(data)):
+        return False
+
+    event_fields = ("event_type", "event", "type", "subscription_type", "topic")
+    event_text = " ".join(str(data.get(k, "")).lower() for k in event_fields)
+    call_state = str(data.get("call_state", "")).lower()
+
+    has_missed_signal = (
+        data.get("call_missed") is True
+        or data.get("missed_call") is True
+        or data.get("is_missed_call") is True
+        or call_state in MISSED_CALL_STATES
+        or any(hint in event_text for hint in MISSED_CALL_EVENT_HINTS)
+        or ("call" in event_text and ("no_answer" in event_text or "unanswered" in event_text))
+    )
+    if not has_missed_signal:
+        return False
+
+    has_call_context = any(key in data for key in CALL_CONTEXT_FIELDS) or "call" in event_text
+    if not has_call_context:
+        return False
+
+    from_num = first_value(data.get("from_number"))
+    return bool(str(from_num or "").strip())
+
+
+def classify_inbound_notification(data):
+    """
+    Classify inbound webhook payload for Telegram behavior.
+    Returns one of: sms, missed_call, blank_sms, not_inbound.
+    """
+    if str(data.get("direction", "")).lower() != "inbound":
+        return "not_inbound"
+    if detect_reliable_missed_call_hint(data):
+        return "missed_call"
+    if is_blank_text(extract_message_text(data)):
+        return "blank_sms"
+    return "sms"
 
 
 def send_to_telegram(text):
@@ -293,10 +373,10 @@ class DialpadWebhookHandler(BaseHTTPRequestHandler):
             return
 
         timestamp = datetime.now().isoformat()
-        direction = data.get("direction", "unknown")
-        from_num = data.get("from_number", "N/A")
+        direction = str(data.get("direction", "unknown")).lower()
+        from_num = first_value(data.get("from_number")) or "N/A"
         to_num = data.get("to_number")
-        text = data.get("text", data.get("text_content", ""))
+        text = extract_message_text(data)
 
         # Store message in SQLite
         try:
@@ -317,6 +397,7 @@ class DialpadWebhookHandler(BaseHTTPRequestHandler):
         # Suppress notification for sensitive messages (2FA codes, OTP, etc.)
         telegram_sent = False
         sensitive_filtered = False
+        telegram_note = ""
         if direction == "inbound":
             # Resolve contact name before filtering so sender check isn't "Unknown"
             contact_info = get_contact_name(from_num)
@@ -325,8 +406,28 @@ class DialpadWebhookHandler(BaseHTTPRequestHandler):
                 if cached and cached != "Unknown":
                     contact_info = cached
 
-            if is_sensitive_message(text=text, sender=contact_info or "", contact_number=from_num):
+            notification_type = classify_inbound_notification(data)
+            if notification_type == "missed_call":
+                line_display = get_line_name(to_num) or "Unknown"
+                if contact_info:
+                    sender_display = f"*{contact_info}* (`{from_num}`)"
+                else:
+                    sender_display = f"`{from_num}`"
+                time_display = datetime.now().strftime("%I:%M %p").lstrip("0")
+
+                tg_text = (
+                    f"📞 *Missed Call*\n"
+                    f"*To:* {line_display}\n"
+                    f"*From:* {sender_display}\n"
+                    f"*Time:* {time_display}"
+                )
+                telegram_sent = send_to_telegram(tg_text)
+                telegram_note = "missed call alert"
+            elif notification_type == "blank_sms":
+                telegram_note = "blank inbound SMS filtered"
+            elif is_sensitive_message(text=text, sender=contact_info or "", contact_number=from_num):
                 sensitive_filtered = True
+                telegram_note = "sensitive - filtered"
                 print(f"   🔒 Sensitive message filtered (not forwarding to Telegram)")
             else:
                 sender_display = f"*{contact_info}* (`{from_num}`)" if contact_info else f"`{from_num}`"
@@ -343,6 +444,7 @@ class DialpadWebhookHandler(BaseHTTPRequestHandler):
                 )
 
                 telegram_sent = send_to_telegram(tg_text)
+                telegram_note = "sms notification"
 
         # Console logging
         print(f"[{timestamp}]")
@@ -354,6 +456,10 @@ class DialpadWebhookHandler(BaseHTTPRequestHandler):
         if direction == "inbound":
             if sensitive_filtered:
                 print(f"   📨 Telegram: ✗ (sensitive — filtered)")
+            elif telegram_note and not telegram_sent:
+                print(f"   📨 Telegram: ✗ ({telegram_note})")
+            elif telegram_note:
+                print(f"   📨 Telegram: {'✓' if telegram_sent else '✗'} ({telegram_note})")
             else:
                 print(f"   📨 Telegram: {'✓' if telegram_sent else '✗'}")
         print()
