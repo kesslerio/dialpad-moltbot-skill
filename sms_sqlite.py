@@ -10,13 +10,27 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
-def filter_messages(messages, **_kwargs):
-    """No-op compatibility hook for message filtering."""
+try:
+    from sms_security_filter import (
+        filter_messages as _security_filter_messages,
+        redact_preview as _security_redact_preview,
+    )
+except ImportError:
+    _security_filter_messages = None
+    _security_redact_preview = None
+
+
+def filter_messages(messages, **kwargs):
+    """Optional filtering: use sms_security_filter when installed, else no-op."""
+    if _security_filter_messages:
+        return _security_filter_messages(messages, **kwargs)
     return messages
 
 
-def redact_preview(text, **_kwargs):
-    """No-op compatibility hook for preview redaction."""
+def redact_preview(text, **kwargs):
+    """Optional redaction: use sms_security_filter when installed, else no-op."""
+    if _security_redact_preview:
+        return _security_redact_preview(text, **kwargs)
     return text
 
 # Database path
