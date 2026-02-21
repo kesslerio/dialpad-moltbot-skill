@@ -22,7 +22,7 @@ from typing import Any
 
 
 DIALPAD_API_KEY = os.environ.get("DIALPAD_API_KEY")
-CALLS_ENDPOINT = "https://dialpad.com/api/v2/calls"
+CALLS_ENDPOINT = "https://dialpad.com/api/v2/call"
 DEFAULT_HOURS = 24
 DEFAULT_LIMIT = 50
 MAX_PAGE_SIZE = 100
@@ -166,13 +166,11 @@ def normalize_duration(call: dict[str, Any]) -> int:
         if value is None:
             continue
         try:
-            raw = float(str(value))
+            raw_ms = float(str(value))
         except (TypeError, ValueError):
             continue
-        # Dialpad duration values are documented in milliseconds.
-        if raw > 10_000:
-            return max(0, int(raw / 1000))
-        return max(0, int(raw))
+        # Dialpad call durations are in milliseconds.
+        return max(0, int(raw_ms / 1000))
     return 0
 
 
