@@ -56,8 +56,10 @@ export OPENCLAW_GATEWAY_URL="http://127.0.0.1:8080"
 export OPENCLAW_HOOKS_TOKEN="your-openclaw-hooks-token"
 export OPENCLAW_HOOKS_PATH="/hooks/agent"
 export OPENCLAW_HOOKS_NAME="Dialpad SMS"
-# optional
-export OPENCLAW_HOOKS_CHANNEL="sms"
+# optional routing overrides
+export OPENCLAW_HOOKS_CHANNEL="telegram"
+export OPENCLAW_HOOKS_TO="-5102073225"
+export OPENCLAW_HOOKS_AGENT_ID="niemand-work"
 ```
 
 ## Usage
@@ -186,9 +188,11 @@ curl -X POST "http://127.0.0.1:8080/hooks/agent" \
   -d '{
     "message": "Dialpad inbound SMS\nFrom: Jane (+14155550123)\n\nHello",
     "name": "Dialpad SMS",
+    "agentId": "niemand-work",
     "sessionKey": "hook:dialpad:sms:123456",
     "deliver": true,
-    "channel": "sms"
+    "channel": "telegram",
+    "to": "-5102073225"
   }'
 ```
 

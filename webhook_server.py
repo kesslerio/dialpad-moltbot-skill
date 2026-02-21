@@ -25,6 +25,8 @@ Environment Variables:
 - OPENCLAW_HOOKS_PATH (default: /hooks/agent)
 - OPENCLAW_HOOKS_NAME (default: Dialpad SMS)
 - OPENCLAW_HOOKS_CHANNEL (optional)
+- OPENCLAW_HOOKS_TO (optional)
+- OPENCLAW_HOOKS_AGENT_ID (optional)
 """
 
 import json
@@ -61,6 +63,8 @@ OPENCLAW_HOOKS_TOKEN = os.environ.get("OPENCLAW_HOOKS_TOKEN", "")
 OPENCLAW_HOOKS_PATH = os.environ.get("OPENCLAW_HOOKS_PATH", "/hooks/agent")
 OPENCLAW_HOOKS_NAME = os.environ.get("OPENCLAW_HOOKS_NAME", "Dialpad SMS")
 OPENCLAW_HOOKS_CHANNEL = os.environ.get("OPENCLAW_HOOKS_CHANNEL", "")
+OPENCLAW_HOOKS_TO = os.environ.get("OPENCLAW_HOOKS_TO", "")
+OPENCLAW_HOOKS_AGENT_ID = os.environ.get("OPENCLAW_HOOKS_AGENT_ID", "")
 
 DEFAULT_LINE_NAMES = {
     "+14155201316": "Sales",
@@ -408,6 +412,23 @@ def get_openclaw_hooks_url():
     return f"{OPENCLAW_GATEWAY_URL.rstrip('/')}/{OPENCLAW_HOOKS_PATH.lstrip('/')}"
 
 
+def build_openclaw_hook_payload(normalized_sms, line_display=None):
+    """Build /hooks/agent payload for a normalized inbound SMS."""
+    payload = {
+        "message": format_hook_message(normalized_sms, line_display=line_display),
+        "name": OPENCLAW_HOOKS_NAME,
+        "sessionKey": build_hook_session_key(normalized_sms),
+        "deliver": True,
+    }
+    if OPENCLAW_HOOKS_CHANNEL:
+        payload["channel"] = OPENCLAW_HOOKS_CHANNEL
+    if OPENCLAW_HOOKS_TO:
+        payload["to"] = OPENCLAW_HOOKS_TO
+    if OPENCLAW_HOOKS_AGENT_ID:
+        payload["agentId"] = OPENCLAW_HOOKS_AGENT_ID
+    return payload
+
+
 def send_sms_to_openclaw_hooks(normalized_sms, line_display=None):
     """
     Forward normalized SMS payload to OpenClaw hooks.
@@ -417,14 +438,7 @@ def send_sms_to_openclaw_hooks(normalized_sms, line_display=None):
         print("⚠️  OPENCLAW_HOOKS_TOKEN is not configured (SMS hooks forwarding disabled)")
         return False, "token_missing"
 
-    payload = {
-        "message": format_hook_message(normalized_sms, line_display=line_display),
-        "name": OPENCLAW_HOOKS_NAME,
-        "sessionKey": build_hook_session_key(normalized_sms),
-        "deliver": True,
-    }
-    if OPENCLAW_HOOKS_CHANNEL:
-        payload["channel"] = OPENCLAW_HOOKS_CHANNEL
+    payload = build_openclaw_hook_payload(normalized_sms, line_display=line_display)
 
     url = get_openclaw_hooks_url()
     data = json.dumps(payload).encode("utf-8")
@@ -785,6 +799,8 @@ def main():
     print(f"  - OpenClaw Hooks Token: {'✓' if OPENCLAW_HOOKS_TOKEN else '✗ (SMS hook forwarding disabled)'}")
     print(f"  - OpenClaw Hooks Name: {OPENCLAW_HOOKS_NAME}")
     print(f"  - OpenClaw Hooks Channel: {OPENCLAW_HOOKS_CHANNEL or '(unset)'}")
+    print(f"  - OpenClaw Hooks To: {OPENCLAW_HOOKS_TO or '(unset)'}")
+    print(f"  - OpenClaw Hooks Agent ID: {OPENCLAW_HOOKS_AGENT_ID or '(default)'}")
     print(f"  - Telegram: {'✓' if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID else '✗ (call/voicemail notifications disabled)'}")
     tg_ready = bool(TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID)
     print(f"  - Call Notifications: {'✓' if tg_ready else '✗ (Telegram not fully configured)'}")

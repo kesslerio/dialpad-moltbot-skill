@@ -7,8 +7,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import webhook_server
 from webhook_server import (
     build_hook_session_key,
+    build_openclaw_hook_payload,
     format_hook_message,
     normalize_sms_payload,
     parse_signature_candidates,
@@ -109,3 +111,25 @@ def test_normalize_and_format_hook_message():
     assert "To Line: Support (415) 555-9876" in message
     assert "From: Jane Doe (+14155550123)" in message
     assert "Need a callback" in message
+
+
+def test_hook_payload_includes_optional_agent_channel_and_to(monkeypatch):
+    monkeypatch.setattr(webhook_server, "OPENCLAW_HOOKS_NAME", "Dialpad SMS")
+    monkeypatch.setattr(webhook_server, "OPENCLAW_HOOKS_CHANNEL", "telegram")
+    monkeypatch.setattr(webhook_server, "OPENCLAW_HOOKS_TO", "-5102073225")
+    monkeypatch.setattr(webhook_server, "OPENCLAW_HOOKS_AGENT_ID", "niemand-work")
+
+    normalized = {
+        "sender": "Jane Doe",
+        "sender_number": "+14155550123",
+        "recipient_number": "+14155559876",
+        "text": "Ping",
+        "conversation_id": "conv-123",
+    }
+
+    payload = build_openclaw_hook_payload(normalized, line_display="Support")
+    assert payload["name"] == "Dialpad SMS"
+    assert payload["channel"] == "telegram"
+    assert payload["to"] == "-5102073225"
+    assert payload["agentId"] == "niemand-work"
+    assert payload["sessionKey"] == "hook:dialpad:sms:conv-123"
