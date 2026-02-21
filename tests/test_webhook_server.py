@@ -4,7 +4,11 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from webhook_server import classify_inbound_notification, detect_reliable_missed_call_hint
+from webhook_server import (
+    classify_inbound_notification,
+    detect_reliable_missed_call_hint,
+    is_sensitive_message,
+)
 
 
 class WebhookNotificationClassificationTests(unittest.TestCase):
@@ -49,6 +53,18 @@ class WebhookNotificationClassificationTests(unittest.TestCase):
         }
         self.assertFalse(detect_reliable_missed_call_hint(payload))
         self.assertEqual(classify_inbound_notification(payload), "blank_sms")
+
+    def test_sensitive_google_verification_message_detected(self):
+        text = "Google verification code: 482991. Do not share this code."
+        self.assertTrue(is_sensitive_message(text=text, sender="Google"))
+
+    def test_sensitive_bank_otp_message_detected(self):
+        text = "Your OTP is 773311 for login. If not you, contact your bank."
+        self.assertTrue(is_sensitive_message(text=text, sender="Capital One"))
+
+    def test_non_sensitive_message_not_detected(self):
+        text = "See you at 6pm for dinner."
+        self.assertFalse(is_sensitive_message(text=text, sender="Friend"))
 
 
 if __name__ == "__main__":

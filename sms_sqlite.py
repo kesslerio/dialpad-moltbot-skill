@@ -10,7 +10,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
-from sms_filter_compat import filter_messages, redact_preview
+def filter_messages(messages, **_kwargs):
+    """No-op compatibility hook for message filtering."""
+    return messages
+
+
+def redact_preview(text, **_kwargs):
+    """No-op compatibility hook for preview redaction."""
+    return text
 
 # Database path
 DB_PATH = Path("/home/art/clawd/logs/sms.db")

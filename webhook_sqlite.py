@@ -14,7 +14,9 @@ sys.path.insert(0, str(skill_dir))
 
 from sms_sqlite import init_db, store_message, get_all_threads, get_unread, mark_as_read
 
-from sms_filter_compat import redact_preview
+def redact_preview(text, **_kwargs):
+    """No-op compatibility hook for preview redaction."""
+    return text
 
 
 def handle_sms_webhook(data: dict) -> dict:
